@@ -1,6 +1,6 @@
 github.com/DATA-DOG/go-sqlmock v1.5.0 h1:Shsta01QNfFxHCfpW6YH2STWB0MudeXXEWMr20OEh60=
-github.com/Mrs4s/MiraiGo v0.0.0-20220925082653-d3b8c5f700af h1:4xe+9ejyGT2LkFI9FTASqFGE5Xqbk53F9palO3sLFPw=
-github.com/Mrs4s/MiraiGo v0.0.0-20220925082653-d3b8c5f700af/go.mod h1:lecSP26qedhinCceWn1x02dLDxGotH5nTFlpIMilmVM=
+github.com/Mrs4s/MiraiGo v0.0.0-20221210162501-592ca2358f91 h1:N44iNlBXW9qp2FirPvXD6XGRhal1akQryXKAWhDsZ0c=
+github.com/Mrs4s/MiraiGo v0.0.0-20221210162501-592ca2358f91/go.mod h1:lecSP26qedhinCceWn1x02dLDxGotH5nTFlpIMilmVM=
 github.com/RomiChan/protobuf v0.0.0-20220624030127-3310cba9dbc0 h1:GEwcB4dL9vc4veW1fLNt0Fby3wspVflAn5v9/HbUwDM=
 github.com/RomiChan/protobuf v0.0.0-20220624030127-3310cba9dbc0/go.mod h1:2Ie+hdBFQpQFDHfeklgxoFmQRCE7O+KwFpISeXq7OwA=
 github.com/RomiChan/syncx v0.0.0-20220404072119-d7ea0ae15a4c h1:cNPOdTNiVwxLpROLjXCgbIPvdkE+BwvxDvgmdYmWx6Q=

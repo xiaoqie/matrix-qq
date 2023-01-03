@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"path/filepath"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -396,6 +397,7 @@ func (p *Portal) convertQQVoice(source *User, msgKey database.MessageKey, elem *
 
 	oggData, err := convertToOgg(data)
 	if err != nil {
+		p.log.Debugfln("%s", err)
 		return p.makeMediaBridgeFailureMessage(msgKey, errors.New("failed to convert silk audio to ogg format"), converted)
 	}
 
@@ -438,21 +440,81 @@ func (p *Portal) convertQQLocation(source *User, msgKey database.MessageKey, ele
 	}
 }
 
-func (p *Portal) convertQQForward(source *User, msgKey database.MessageKey, elem *message.ForwardElement, intent *appservice.IntentAPI) *ConvertedMessage {
-	var summary []string
+func (p *Portal) handleQQForward(source *User, msgKey database.MessageKey, elem *message.ForwardElement, intent *appservice.IntentAPI, existingMsg *database.Message, sender types.UID) {
+	ts := time.Now().UnixMilli()
+	// for _, item := range source.Client.DownloadForwardMessage(elem.ResId).Items {
+	// 	for _, m := range item.Buffer.Msg {
+	// 		for _, e := range m.Body.RichText.Elems {
+	// 			p.log.Debugfln("%#v", e)
+	// 			p.log.Debugfln("%#v", e.OnlineImage)
+	// 			p.log.Debugfln("%#v", e.NotOnlineImage)
+	// 			p.log.Debugfln("%#v", e.MarketFace)
+	// 		}
+	// 	}
+	// }
+	msg := source.Client.GetForwardMessage(elem.ResId)
+	nodes := msg.Nodes
 
+	converted := &ConvertedMessage{
+		Intent: intent,
+		Type:   event.EventMessage,
+		Content: &event.MessageEventContent{
+			Body:    "ForwardMessage",
+			MsgType: event.MsgText,
+		},
+		Extra: map[string]interface{}{},
+	}
+	var threadEventID id.EventID
+	resp, err := p.sendMessage(converted.Intent, converted.Type, converted.Content, converted.Extra, ts)
+	if err != nil {
+		p.log.Errorfln("Failed to send %s to Matrix: %v", msgKey, err)
+	} else {
+		threadEventID = resp.EventID
+	}
+
+	if len(threadEventID) != 0 {
+		p.finishHandling(existingMsg, msgKey, time.UnixMilli(ts), sender, threadEventID, database.MsgNormal, converted.Error, message.ToReadableString([]message.IMessageElement{elem}))
+	}
+	converted = nil
+
+	var flush func()
+	var summary []string
+	flush = func() {
+		if summary != nil {
+			converted = &ConvertedMessage{
+				Intent: intent,
+				Type:   event.EventMessage,
+				Content: &event.MessageEventContent{
+					Body:    strings.Join(summary, ""),
+					MsgType: event.MsgText,
+				},
+				Extra: map[string]interface{}{},
+			}
+		}
+		if converted == nil {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+		converted.Content.RelatesTo = (&event.RelatesTo{}).SetThread(threadEventID, threadEventID)
+
+		_, err := p.sendMessage(converted.Intent, converted.Type, converted.Content, converted.Extra, time.Now().UnixMilli())
+		if err != nil {
+			p.log.Errorfln("Failed to send %s to Matrix: %v", msgKey, err)
+		}
+
+		converted = nil
+		summary = nil
+	}
 	var handleForward func(nodes []*message.ForwardNode)
 	handleForward = func(nodes []*message.ForwardNode) {
-		summary = append(summary, "<b><i>ForwardMessage:</i></b><br/><ul>")
-
 		for _, node := range nodes {
 			name := node.SenderName
 			if len(name) == 0 {
 				name = strconv.FormatInt(node.SenderId, 10)
 			}
-
-			summary = append(summary, fmt.Sprintf("<li>%s:<br/>", name))
+			summary = append(summary, "\n●"+name+":\n")
 			for _, e := range node.Message {
+				p.log.Debugfln("%#v", e)
 				switch v := e.(type) {
 				case *message.TextElement:
 					summary = append(summary, v.Content)
@@ -461,11 +523,30 @@ func (p *Portal) convertQQForward(source *User, msgKey database.MessageKey, elem
 				case *message.AtElement:
 					summary = append(summary, v.Display)
 				case *message.FriendImageElement:
-					summary = append(summary, p.renderQQImage(v.Url, intent))
+					flush()
+					url := v.Url
+					if strings.Contains(url, "BADBADBAD") {
+						url = fmt.Sprintf("https://c2cpicdw.qpic.cn/offpic_new/0/%d-0-%s/0?term=3", node.SenderId, strings.TrimSuffix(v.ImageId, filepath.Ext(v.ImageId)))
+					}
+					p.log.Debugfln("%s", url)
+					converted = p.convertQQImage(source, msgKey, url, intent)
+					flush()
 				case *message.GroupImageElement:
-					summary = append(summary, p.renderQQImage(v.Url, intent))
+					flush()
+					converted = p.convertQQImage(source, msgKey, v.Url, intent)
+					flush()
+				case *message.ShortVideoElement:
+					flush()
+					converted = p.convertQQVideo(source, msgKey, v, intent)
+					flush()
+				case *message.GroupFileElement:
+					flush()
+					converted = p.convertQQGroupFile(source, msgKey, v, intent)
+					flush()
 				case *message.ForwardMessage:
+					summary = append(summary, "--ForwardMessage--")
 					handleForward(v.Nodes)
+					summary = append(summary, "\n--End ForwardMessage--")
 				case *message.ServiceElement:
 					if v.SubType != "xml" {
 						continue
@@ -479,19 +560,20 @@ func (p *Portal) convertQQForward(source *User, msgKey database.MessageKey, elem
 					if resNode != nil && len(resNode.InnerText()) != 0 {
 						msg := source.Client.GetForwardMessage(resNode.InnerText())
 						if msg != nil {
+							summary = append(summary, "--ForwardMessage--")
 							handleForward(msg.Nodes)
+							summary = append(summary, "\n--End ForwardMessage--")
 						}
 					} else {
 						briefNode := xmlquery.FindOne(doc, "/msg/@brief")
 						if briefNode != nil && len(briefNode.InnerText()) != 0 {
-							summary = append(summary, fmt.Sprintf("<b><i>%s:</i></b><br/><ul>", briefNode.InnerText()))
+							summary = append(summary, fmt.Sprintf("%s:\n", briefNode.InnerText()))
 						} else {
-							summary = append(summary, "<b><i>Items:</i></b><br/><ul>")
+							summary = append(summary, "Items:\n")
 						}
 						for _, title := range xmlquery.Find(doc, "/msg/item/title") {
-							summary = append(summary, "<li>", title.InnerText(), "</li>")
+							summary = append(summary, "●", title.InnerText())
 						}
-						summary = append(summary, "</ul>")
 					}
 				case *message.AnimatedSticker:
 					summary = append(summary, "/"+v.Name)
@@ -501,32 +583,10 @@ func (p *Portal) convertQQForward(source *User, msgKey database.MessageKey, elem
 					summary = append(summary, fmt.Sprintf("[%v]", v.Type()))
 				}
 			}
-
-			summary = append(summary, "</li>")
 		}
-
-		summary = append(summary, "</ul>")
 	}
-
-	msg := source.Client.GetForwardMessage(elem.ResId)
-	if msg != nil {
-		handleForward(msg.Nodes)
-	}
-
-	body := strings.Join(summary, "")
-
-	converted := &ConvertedMessage{
-		Intent: intent,
-		Type:   event.EventMessage,
-		Content: &event.MessageEventContent{
-			MsgType:       event.MsgText,
-			Format:        event.FormatHTML,
-			Body:          body,
-			FormattedBody: format.RenderMarkdown(body, true, true).FormattedBody,
-		},
-	}
-
-	return converted
+	handleForward(nodes)
+	flush()
 }
 
 func (p *Portal) convertQQImage(source *User, msgKey database.MessageKey, url string, intent *appservice.IntentAPI) *ConvertedMessage {
@@ -595,17 +655,6 @@ func (p *Portal) renderQQLightApp(elem *message.LightAppElement, intent *appserv
 	if gjson.Get(elem.Content, "app").String() == "com.tencent.mannounce" {
 		return gjson.Get(elem.Content, "prompt").String()
 	}
-	if title := gjson.Get(elem.Content, "meta.albumData.title").String(); len(title) > 0 {
-		albumName := gjson.Get(elem.Content, "meta.albumData.albumName").String()
-		desc := gjson.Get(elem.Content, "meta.albumData.desc").String()
-		prompt := gjson.Get(elem.Content, "prompt").String()
-		var content = fmt.Sprintf("%s@%s\n%s\n", prompt, albumName, desc)
-		pics := gjson.Get(elem.Content, "meta.albumData.pics.#.url").Array()
-		for _, url := range pics {
-			content += p.renderQQImage("https://"+url.String(), intent)
-		}
-		return content
-	}
 	if url := gjson.Get(elem.Content, "meta.*.qqdocurl").String(); len(url) > 0 {
 		title := gjson.Get(elem.Content, "meta.*.title").String()
 		desc := gjson.Get(elem.Content, "meta.*.desc").String()
@@ -630,11 +679,7 @@ func (p *Portal) renderQQLightApp(elem *message.LightAppElement, intent *appserv
 	if len(url) > 0 {
 		desc := gjson.Get(elem.Content, "desc").String()
 		prompt := gjson.Get(elem.Content, "prompt").String()
-		urlPreview := url
-		if len(urlPreview) >= 30 {
-			urlPreview = urlPreview[0:30] + "..."
-		}
-		return fmt.Sprintf("**%s**\n%s\n\n[%s](%s)", prompt, desc, urlPreview, url)
+		return fmt.Sprintf("[%s](%s)\n\n%s", prompt, url, desc)
 	}
 	prompt := gjson.Get(elem.Content, "prompt").String()
 	return fmt.Sprintf("Unsupported LightApp: %s", prompt)
@@ -691,10 +736,87 @@ func (p *Portal) handleQQMessage(source *User, msg PortalMessage) {
 	var summary []string
 	mentions := make(map[int]string)
 	isRichFormat := false
+
+	var flush func()
+	flush = func() {
+		if len(summary) == 0 && converted == nil {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+
+		if len(summary) > 0 {
+			body := strings.Join(summary, "")
+			content := &event.MessageEventContent{
+				Body:    body,
+				MsgType: event.MsgText,
+			}
+			if len(mentions) > 0 {
+				offset := 0
+				if replyInfo != nil {
+					summary = summary[1:]
+					content.Body = strings.Join(summary, "")
+					offset = 1
+				}
+				var sb strings.Builder
+				for pos, s := range summary {
+					if val, ok := mentions[pos+offset]; ok {
+						sb.WriteString(val)
+					} else {
+						sb.WriteString(s)
+					}
+				}
+
+				content.Format = event.FormatHTML
+				content.FormattedBody = sb.String()
+			}
+			if isRichFormat {
+				content.Format = event.FormatHTML
+				if len(content.FormattedBody) > 0 {
+					// FIXME: security risk?
+					content.FormattedBody = format.RenderMarkdown(content.FormattedBody, true, true).FormattedBody
+				} else {
+					content.FormattedBody = format.RenderMarkdown(body, true, false).FormattedBody
+				}
+			}
+
+			converted = &ConvertedMessage{
+				Intent:  intent,
+				Type:    event.EventMessage,
+				Content: content,
+				Extra:   map[string]interface{}{},
+			}
+		}
+
+		if replyInfo != nil {
+			p.SetReply(converted.Content, replyInfo)
+		}
+
+		var eventID id.EventID
+		resp, err := p.sendMessage(converted.Intent, converted.Type, converted.Content, converted.Extra, ts)
+		if err != nil {
+			p.log.Errorfln("Failed to send %s to Matrix: %v", msgKey, err)
+		} else {
+			eventID = resp.EventID
+		}
+
+		if len(eventID) != 0 {
+			p.finishHandling(existingMsg, msgKey, time.UnixMilli(ts), sender, eventID, database.MsgNormal, converted.Error, message.ToReadableString(elems))
+		}
+
+		converted = nil
+		replyInfo = nil
+		summary = nil
+		mentions = make(map[int]string)
+		isRichFormat = false
+	}
+
+	enableRichFormat := false
+
 	if msg.offline != nil {
 		converted = p.convertQQFile(source, msgKey, msg.offline, intent)
 	} else {
 		for _, e := range elems {
+			p.log.Debugfln("%#v", e)
 			switch v := e.(type) {
 			case *message.TextElement:
 				summary = append(summary, v.Content)
@@ -713,16 +835,28 @@ func (p *Portal) handleQQMessage(source *User, msg PortalMessage) {
 				if len(elems) == 1 {
 					converted = p.convertQQImage(source, msgKey, v.Url, intent)
 				} else {
-					summary = append(summary, p.renderQQImage(v.Url, intent))
-					isRichFormat = true
+					if enableRichFormat {
+						summary = append(summary, p.renderQQImage(v.Url, intent))
+						isRichFormat = true
+					} else {
+						flush()
+						converted = p.convertQQImage(source, msgKey, v.Url, intent)
+						flush()
+					}
 				}
 			case *message.GroupImageElement:
 				// rich format can't display gif properly...
 				if len(elems) == 1 {
 					converted = p.convertQQImage(source, msgKey, v.Url, intent)
 				} else {
-					summary = append(summary, p.renderQQImage(v.Url, intent))
-					isRichFormat = true
+					if enableRichFormat {
+						summary = append(summary, p.renderQQImage(v.Url, intent))
+						isRichFormat = true
+					} else {
+						flush()
+						converted = p.convertQQImage(source, msgKey, v.Url, intent)
+						flush()
+					}
 				}
 			case *message.ShortVideoElement:
 				converted = p.convertQQVideo(source, msgKey, v, intent)
@@ -740,6 +874,24 @@ func (p *Portal) handleQQMessage(source *User, msg PortalMessage) {
 				view := getAppView(v)
 				if view == "LocationShare" {
 					converted = p.convertQQLocation(source, msgKey, v, intent)
+				} else if title := gjson.Get(v.Content, "meta.albumData.title").String(); len(title) > 0 {
+					albumName := gjson.Get(v.Content, "meta.albumData.albumName").String()
+					desc := gjson.Get(v.Content, "meta.albumData.desc").String()
+					prompt := gjson.Get(v.Content, "prompt").String()
+					summary = append(summary, fmt.Sprintf("%s@%s\n%s\n", prompt, albumName, desc))
+					isRichFormat = true
+					pics := gjson.Get(v.Content, "meta.albumData.pics.#.url").Array()
+					if enableRichFormat {
+						for _, url := range pics {
+							summary = append(summary, p.renderQQImage("https://"+url.String(), intent))
+						}
+					} else {
+						flush()
+						for _, url := range pics {
+							converted = p.convertQQImage(source, msgKey, "https://"+url.String(), intent)
+							flush()
+						}
+					}
 				} else {
 					if len(elems) > 1 {
 						summary = append(summary, "\n\n")
@@ -748,7 +900,8 @@ func (p *Portal) handleQQMessage(source *User, msg PortalMessage) {
 					isRichFormat = true
 				}
 			case *message.ForwardElement:
-				converted = p.convertQQForward(source, msgKey, v, intent)
+				// converted = p.convertQQForward(source, msgKey, v, intent)
+				p.handleQQForward(source, msgKey, v, intent, existingMsg, sender)
 			case *message.AnimatedSticker:
 				summary = append(summary, "/"+v.Name)
 			case *message.MarketFaceElement:
@@ -759,64 +912,7 @@ func (p *Portal) handleQQMessage(source *User, msg PortalMessage) {
 		}
 	}
 
-	if len(summary) > 0 {
-		body := strings.Join(summary, "")
-		content := &event.MessageEventContent{
-			Body:    body,
-			MsgType: event.MsgText,
-		}
-		if len(mentions) > 0 {
-			offset := 0
-			if replyInfo != nil {
-				summary = summary[1:]
-				content.Body = strings.Join(summary, "")
-				offset = 1
-			}
-			var sb strings.Builder
-			for pos, s := range summary {
-				if val, ok := mentions[pos+offset]; ok {
-					sb.WriteString(val)
-				} else {
-					sb.WriteString(s)
-				}
-			}
-
-			content.Format = event.FormatHTML
-			content.FormattedBody = sb.String()
-		}
-		if isRichFormat {
-			content.Format = event.FormatHTML
-			if len(content.FormattedBody) > 0 {
-				// FIXME: security risk?
-				content.FormattedBody = format.RenderMarkdown(content.FormattedBody, true, true).FormattedBody
-			} else {
-				content.FormattedBody = format.RenderMarkdown(body, true, false).FormattedBody
-			}
-		}
-
-		converted = &ConvertedMessage{
-			Intent:  intent,
-			Type:    event.EventMessage,
-			Content: content,
-			Extra:   map[string]interface{}{},
-		}
-	}
-
-	if replyInfo != nil {
-		p.SetReply(converted.Content, replyInfo)
-	}
-
-	var eventID id.EventID
-	resp, err := p.sendMessage(converted.Intent, converted.Type, converted.Content, converted.Extra, ts)
-	if err != nil {
-		p.log.Errorfln("Failed to send %s to Matrix: %v", msgKey, err)
-	} else {
-		eventID = resp.EventID
-	}
-
-	if len(eventID) != 0 {
-		p.finishHandling(existingMsg, msgKey, time.UnixMilli(ts), sender, eventID, database.MsgNormal, converted.Error, message.ToReadableString(elems))
-	}
+	flush()
 }
 
 func (p *Portal) isRecentlyHandled(id string, error database.MessageErrorType) bool {
@@ -1741,6 +1837,38 @@ func (p *Portal) uploadMedia(intent *appservice.IntentAPI, data []byte, content 
 	if content.Info.Width == 0 && content.Info.Height == 0 && strings.HasPrefix(content.Info.MimeType, "image/") {
 		cfg, _, _ := image.DecodeConfig(bytes.NewReader(data))
 		content.Info.Width, content.Info.Height = cfg.Width, cfg.Height
+	}
+
+	if content.Info.Width == 0 && content.Info.Height == 0 && strings.HasPrefix(content.Info.MimeType, "video/") {
+		width, height, err := getVideoMetadata(data)
+		if err != nil {
+			p.log.Debugfln("failed to get video metadata: %s", err)
+		} else {
+			p.log.Debugfln("%d, %d", width, height)
+			content.Info.Width = width
+			content.Info.Height = height
+		}
+	}
+
+	if len(content.Info.ThumbnailURL) == 0 && strings.HasPrefix(content.Info.MimeType, "video/") {
+		thumbnail, err := generateVideoThumbnail(data)
+		if err != nil {
+			p.log.Debugfln("failed to generate video thumbnail: %s, %s", err, string(thumbnail))
+		} else {
+			uploadedThumbnail, err := intent.UploadBytes(thumbnail, "image/jpeg")
+			if err != nil {
+				p.log.Debugfln("failed to upload video thumbnail: %s", err)
+			} else {
+				content.Info.ThumbnailURL = uploadedThumbnail.ContentURI.CUString()
+				cfg, _, _ := image.DecodeConfig(bytes.NewReader(thumbnail))
+				content.Info.ThumbnailInfo = &event.FileInfo{
+					Size:     len(thumbnail),
+					Width:    cfg.Width,
+					Height:   cfg.Height,
+					MimeType: "image/jpeg",
+				}
+			}
+		}
 	}
 
 	return nil

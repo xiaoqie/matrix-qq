@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/tidwall/gjson"
 	"github.com/wdvxdr1123/go-silk"
 )
 
@@ -47,126 +48,126 @@ var (
 
 	// created by JogleLew and jqqqqqqqqqq, optimized based on Tim's emoji support, updated by xzsk2 to mobileqq v8.8.11
 	emojis = map[string]string{
-		"NO": "🚫",
-		"OK": "👌",
-		"不开心": "😞",
-		"乒乓": "🏓",
-		"便便": "💩",
-		"偷笑": "😏",
-		"傲慢": "😕",
-		"再见": "👋",
-		"冷汗": "😅",
-		"凋谢": "🥀",
-		"刀": "🔪",
-		"发呆": "😳",
-		"发怒": "😡",
-		"发抖": "😮",
-		"可爱": "😊",
-		"右哼哼": "😏",
-		"吐": "😨",
-		"吓": "🙀",
-		"呲牙": "😃",
-		"咒骂": "😤",
-		"咖啡": "☕️",
-		"哈欠": "🥱",
-		"啤酒": "🍺",
-		"啵啵": "😙",
-		"喝奶": "🍼",
-		"喝彩": "👏",
-		"嘘": "🤐",
-		"困": "😪",
-		"坏笑": "😏",
-		"大哭": "😭",
-		"大笑": "😄",
-		"太阳": "🌞️",
-		"奋斗": "✊",
-		"好棒": "👍",
-		"委屈": "😭",
-		"害怕": "😨",
-		"害羞": "☺️",
-		"尴尬": "😰",
-		"左亲亲": "😚",
-		"左哼哼": "😏",
-		"干杯": "🍻",
-		"幽灵": "👻",
-		"开枪": "🔫",
-		"得意": "😎",
-		"微笑": "🙂",
-		"心碎": "💔️",
-		"快哭了": "😭",
-		"悠闲": "🤑",
-		"惊呆": "😮",
-		"惊恐": "😨",
-		"惊讶": "😮",
-		"憨笑": "😬",
-		"手枪": "🔫",
-		"抓狂": "😤",
-		"折磨": "😩",
-		"抱抱": "🤗",
-		"拍手": "👏",
-		"拜托": "👋",
-		"拥抱": "🤷",
-		"拳头": "✊",
-		"挥手": "👋",
-		"握手": "🤝",
-		"撇嘴": "😣",
-		"敲打": "🔨",
-		"晕": "😵",
-		"月亮": "🌃",
-		"棒棒糖": "🍭",
-		"河蟹": "🦀",
-		"泪奔": "😭",
-		"流汗": "😓",
-		"流泪": "😭",
-		"灯笼": "🏮",
-		"炸弹": "💣",
-		"点赞": "👍",
-		"爱你": "🤟",
-		"爱心": "❤️",
-		"爱情": "💑",
-		"猪头": "🐷",
-		"献吻": "😘",
-		"玫瑰": "🌹",
-		"瓢虫": "🐞",
+		"NO":   "🚫",
+		"OK":   "👌",
+		"不开心":  "😞",
+		"乒乓":   "🏓",
+		"便便":   "💩",
+		"偷笑":   "😏",
+		"傲慢":   "😕",
+		"再见":   "👋",
+		"冷汗":   "😅",
+		"凋谢":   "🥀",
+		"刀":    "🔪",
+		"发呆":   "😳",
+		"发怒":   "😡",
+		"发抖":   "😮",
+		"可爱":   "😊",
+		"右哼哼":  "😏",
+		"吐":    "😨",
+		"吓":    "🙀",
+		"呲牙":   "😃",
+		"咒骂":   "😤",
+		"咖啡":   "☕️",
+		"哈欠":   "🥱",
+		"啤酒":   "🍺",
+		"啵啵":   "😙",
+		"喝奶":   "🍼",
+		"喝彩":   "👏",
+		"嘘":    "🤐",
+		"困":    "😪",
+		"坏笑":   "😏",
+		"大哭":   "😭",
+		"大笑":   "😄",
+		"太阳":   "🌞️",
+		"奋斗":   "✊",
+		"好棒":   "👍",
+		"委屈":   "😭",
+		"害怕":   "😨",
+		"害羞":   "☺️",
+		"尴尬":   "😰",
+		"左亲亲":  "😚",
+		"左哼哼":  "😏",
+		"干杯":   "🍻",
+		"幽灵":   "👻",
+		"开枪":   "🔫",
+		"得意":   "😎",
+		"微笑":   "🙂",
+		"心碎":   "💔️",
+		"快哭了":  "😭",
+		"悠闲":   "🤑",
+		"惊呆":   "😮",
+		"惊恐":   "😨",
+		"惊讶":   "😮",
+		"憨笑":   "😬",
+		"手枪":   "🔫",
+		"抓狂":   "😤",
+		"折磨":   "😩",
+		"抱抱":   "🤗",
+		"拍手":   "👏",
+		"拜托":   "👋",
+		"拥抱":   "🤷",
+		"拳头":   "✊",
+		"挥手":   "👋",
+		"握手":   "🤝",
+		"撇嘴":   "😣",
+		"敲打":   "🔨",
+		"晕":    "😵",
+		"月亮":   "🌃",
+		"棒棒糖":  "🍭",
+		"河蟹":   "🦀",
+		"泪奔":   "😭",
+		"流汗":   "😓",
+		"流泪":   "😭",
+		"灯笼":   "🏮",
+		"炸弹":   "💣",
+		"点赞":   "👍",
+		"爱你":   "🤟",
+		"爱心":   "❤️",
+		"爱情":   "💑",
+		"猪头":   "🐷",
+		"献吻":   "😘",
+		"玫瑰":   "🌹",
+		"瓢虫":   "🐞",
 		"生日快乐": "🎂",
-		"疑问": "🤔",
-		"白眼": "🙄",
-		"睡": "😴",
-		"示爱": "❤️",
-		"礼物": "🎁",
-		"祈祷": "🙏",
-		"笑哭": "😂",
-		"篮球": "🏀",
-		"红包": "🧧",
-		"胜利": "✌️",
-		"色": "😍",
-		"茶": "🍵",
-		"药": "💊",
-		"菊花": "🌼",
-		"菜刀": "🔪",
-		"蛋": "🥚",
-		"蛋糕": "🎂",
-		"衰": "💣",
-		"西瓜": "🍉",
-		"调皮": "😝",
-		"赞": "👍",
-		"足球": "⚽️",
-		"跳跳": "🕺",
-		"踩": "👎",
-		"送花": "💐",
-		"酷": "🤓",
-		"钞票": "💵",
-		"闪电": "⚡",
-		"闭嘴": "😷",
-		"难过": "🙁",
-		"鞭炮": "🧨",
-		"飙泪": "😭",
-		"飞吻": "🥰",
-		"飞机": "🛩",
-		"饥饿": "🤤",
-		"饭": "🍚",
-		"骷髅": "💀",
-		"鼓掌": "👏",
+		"疑问":   "🤔",
+		"白眼":   "🙄",
+		"睡":    "😴",
+		"示爱":   "❤️",
+		"礼物":   "🎁",
+		"祈祷":   "🙏",
+		"笑哭":   "😂",
+		"篮球":   "🏀",
+		"红包":   "🧧",
+		"胜利":   "✌️",
+		"色":    "😍",
+		"茶":    "🍵",
+		"药":    "💊",
+		"菊花":   "🌼",
+		"菜刀":   "🔪",
+		"蛋":    "🥚",
+		"蛋糕":   "🎂",
+		"衰":    "💣",
+		"西瓜":   "🍉",
+		"调皮":   "😝",
+		"赞":    "👍",
+		"足球":   "⚽️",
+		"跳跳":   "🕺",
+		"踩":    "👎",
+		"送花":   "💐",
+		"酷":    "🤓",
+		"钞票":   "💵",
+		"闪电":   "⚡",
+		"闭嘴":   "😷",
+		"难过":   "🙁",
+		"鞭炮":   "🧨",
+		"飙泪":   "😭",
+		"飞吻":   "🥰",
+		"飞机":   "🛩",
+		"饥饿":   "🤤",
+		"饭":    "🍚",
+		"骷髅":   "💀",
+		"鼓掌":   "👏",
 	}
 )
 
@@ -190,34 +191,106 @@ type waveHeader struct {
 	DataSize      int32
 }
 
-func convertToOgg(rawData []byte) ([]byte, error) {
-	pcmData, err := silk.DecodeSilkBuffToPcm(rawData, sampleRate)
+func getVideoMetadata(rawData []byte) (int, int, error) {
+	buf := bytes.NewBuffer(rawData)
+
+	cmd := exec.Command(
+		"ffprobe", "-v", "error", "-select_streams", "v", "-show_entries", "stream=width,height", "-of", "json", "-i", "pipe:0",
+	)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return 0, 0, err
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if err := cmd.Start(); err != nil {
+		return 0, 0, err
+	}
+
+	io.Copy(stdin, buf)
+	stdin.Close()
+
+	result := &bytes.Buffer{}
+	io.Copy(result, stdout)
+
+	if err := cmd.Wait(); err != nil {
+		return 0, 0, err
+	}
+	json := result.String()
+	return int(gjson.Get(json, "streams.0.width").Int()), int(gjson.Get(json, "streams.0.height").Int()), nil
+}
+
+func generateVideoThumbnail(rawData []byte) ([]byte, error) {
+	buf := bytes.NewBuffer(rawData)
+
+	cmd := exec.Command(
+		"ffmpeg", "-i", "pipe:0", "-ss", "00:00:01.000", "-vframes", "1", "-f", "image2", "pipe:1",
+	)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, err
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return nil, err
 	}
 
-	header := waveHeader{
-		RiffMark:      [4]byte{'R', 'I', 'F', 'F'},
-		FileSize:      int32(44 + len(pcmData)),
-		WaveMark:      [4]byte{'W', 'A', 'V', 'E'},
-		FmtMark:       [4]byte{'f', 'm', 't', ' '},
-		FormatSize:    16,
-		FormatType:    1,
-		NumChans:      int16(numChannels),
-		SampleRate:    int32(sampleRate),
-		ByteRate:      int32(sampleRate * numChannels * precision),
-		BytesPerFrame: int16(numChannels * precision),
-		BitsPerSample: int16(precision) * 8,
-		DataMark:      [4]byte{'d', 'a', 't', 'a'},
-		DataSize:      int32(len(pcmData)),
+	if err := cmd.Start(); err != nil {
+		return nil, err
 	}
 
-	buf := &bytes.Buffer{}
-	if err := binary.Write(buf, binary.LittleEndian, &header); err != nil {
-		return nil, err
+	io.Copy(stdin, buf)
+	stdin.Close()
+
+	jpegBuf := &bytes.Buffer{}
+	io.Copy(jpegBuf, stdout)
+
+	stderrBuf := &bytes.Buffer{}
+	io.Copy(stderrBuf, stderr)
+
+	if err := cmd.Wait(); err != nil {
+		return stderrBuf.Bytes(), err
 	}
-	if _, err := buf.Write(pcmData); err != nil {
+
+	return jpegBuf.Bytes(), nil
+}
+
+func convertToOgg(rawData []byte) ([]byte, error) {
+	pcmData, err := silk.DecodeSilkBuffToPcm(rawData, sampleRate)
+	buf := &bytes.Buffer{}
+	if err == nil {
+		header := waveHeader{
+			RiffMark:      [4]byte{'R', 'I', 'F', 'F'},
+			FileSize:      int32(44 + len(pcmData)),
+			WaveMark:      [4]byte{'W', 'A', 'V', 'E'},
+			FmtMark:       [4]byte{'f', 'm', 't', ' '},
+			FormatSize:    16,
+			FormatType:    1,
+			NumChans:      int16(numChannels),
+			SampleRate:    int32(sampleRate),
+			ByteRate:      int32(sampleRate * numChannels * precision),
+			BytesPerFrame: int16(numChannels * precision),
+			BitsPerSample: int16(precision) * 8,
+			DataMark:      [4]byte{'d', 'a', 't', 'a'},
+			DataSize:      int32(len(pcmData)),
+		}
+
+		if err := binary.Write(buf, binary.LittleEndian, &header); err != nil {
+			return nil, err
+		}
+		if _, err := buf.Write(pcmData); err != nil {
+			return nil, err
+		}
 		return nil, err
+	} else {
+		buf.Write(rawData)
 	}
 
 	cmd := exec.Command(
@@ -288,9 +361,9 @@ func convertToSilk(rawData []byte) ([]byte, error) {
 
 func convertFace(face string) string {
 	if val, ok := emojis[face]; ok {
-		return val;
+		return val
 	}
-	return "/" + face;
+	return "/" + face
 }
 
 func GetBytes(url string) ([]byte, error) {
