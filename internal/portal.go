@@ -279,7 +279,7 @@ func (p *Portal) convertQQVideo(source *User, msgKey database.MessageKey, elem *
 	url := source.Client.GetShortVideoUrl(elem.Uuid, elem.Md5)
 	data, mime, err := download(url)
 	if err != nil {
-		return p.makeMediaBridgeFailureMessage(msgKey, errors.New("failed to download video from QQ"), converted)
+		return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("failed to download video %s from QQ", url), converted)
 	}
 
 	content.Info.MimeType = mime.String()
@@ -288,11 +288,11 @@ func (p *Portal) convertQQVideo(source *User, msgKey database.MessageKey, elem *
 	err = p.uploadMedia(intent, data, content)
 	if err != nil {
 		if errors.Is(err, mautrix.MTooLarge) {
-			return p.makeMediaBridgeFailureMessage(msgKey, errors.New("homeserver rejected too large file"), converted)
+			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("homeserver rejected too large file %s", url), converted)
 		} else if httpErr, ok := err.(mautrix.HTTPError); ok && httpErr.IsStatus(413) {
-			return p.makeMediaBridgeFailureMessage(msgKey, errors.New("proxy rejected too large file"), converted)
+			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("proxy rejected too large file %s", url), converted)
 		} else {
-			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("failed to upload media: %w", err), converted)
+			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("failed to upload media %s: %w", url, err), converted)
 		}
 	}
 
@@ -317,7 +317,7 @@ func (p *Portal) convertQQFile(source *User, msgKey database.MessageKey, e *clie
 
 	data, mime, err := download(e.DownloadUrl)
 	if err != nil {
-		return p.makeMediaBridgeFailureMessage(msgKey, errors.New("failed to download file from QQ"), converted)
+		return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("failed to download file %s from QQ", e.DownloadUrl), converted)
 	}
 
 	content.Info.MimeType = mime.String()
@@ -325,11 +325,11 @@ func (p *Portal) convertQQFile(source *User, msgKey database.MessageKey, e *clie
 	err = p.uploadMedia(intent, data, content)
 	if err != nil {
 		if errors.Is(err, mautrix.MTooLarge) {
-			return p.makeMediaBridgeFailureMessage(msgKey, errors.New("homeserver rejected too large file"), converted)
+			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("homeserver rejected too large file %s", e.DownloadUrl), converted)
 		} else if httpErr, ok := err.(mautrix.HTTPError); ok && httpErr.IsStatus(413) {
-			return p.makeMediaBridgeFailureMessage(msgKey, errors.New("proxy rejected too large file"), converted)
+			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("proxy rejected too large file %s", e.DownloadUrl), converted)
 		} else {
-			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("failed to upload media: %w", err), converted)
+			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("failed to upload media %s: %w", e.DownloadUrl, err), converted)
 		}
 	}
 
@@ -355,7 +355,7 @@ func (p *Portal) convertQQGroupFile(source *User, msgKey database.MessageKey, el
 	url := source.Client.GetGroupFileUrl(p.Key.UID.IntUin(), elem.Path, elem.Busid)
 	data, mime, err := download(url)
 	if err != nil {
-		return p.makeMediaBridgeFailureMessage(msgKey, errors.New("failed to download group file from QQ"), converted)
+		return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("failed to download group file %s from QQ", url), converted)
 	}
 
 	content.Info.MimeType = mime.String()
@@ -363,11 +363,11 @@ func (p *Portal) convertQQGroupFile(source *User, msgKey database.MessageKey, el
 	err = p.uploadMedia(intent, data, content)
 	if err != nil {
 		if errors.Is(err, mautrix.MTooLarge) {
-			return p.makeMediaBridgeFailureMessage(msgKey, errors.New("homeserver rejected too large file"), converted)
+			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("homeserver rejected too large file %s", url), converted)
 		} else if httpErr, ok := err.(mautrix.HTTPError); ok && httpErr.IsStatus(413) {
-			return p.makeMediaBridgeFailureMessage(msgKey, errors.New("proxy rejected too large file"), converted)
+			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("proxy rejected too large file %s", url), converted)
 		} else {
-			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("failed to upload media: %w", err), converted)
+			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("failed to upload media %s: %w", url, err), converted)
 		}
 	}
 
@@ -392,13 +392,13 @@ func (p *Portal) convertQQVoice(source *User, msgKey database.MessageKey, elem *
 
 	data, _, err := download(elem.Url)
 	if err != nil {
-		return p.makeMediaBridgeFailureMessage(msgKey, errors.New("failed to download voice from QQ"), converted)
+		return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("failed to download voice %s from QQ", elem.Url), converted)
 	}
 
 	oggData, err := convertToOgg(data)
 	if err != nil {
 		p.log.Debugfln("%s", err)
-		return p.makeMediaBridgeFailureMessage(msgKey, errors.New("failed to convert silk audio to ogg format"), converted)
+		return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("failed to convert silk audio %s to ogg format", elem.Url), converted)
 	}
 
 	content.Info.Size = len(oggData)
@@ -406,11 +406,11 @@ func (p *Portal) convertQQVoice(source *User, msgKey database.MessageKey, elem *
 	err = p.uploadMedia(intent, oggData, content)
 	if err != nil {
 		if errors.Is(err, mautrix.MTooLarge) {
-			return p.makeMediaBridgeFailureMessage(msgKey, errors.New("homeserver rejected too large file"), converted)
+			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("homeserver rejected too large file %s", elem.Url), converted)
 		} else if httpErr, ok := err.(mautrix.HTTPError); ok && httpErr.IsStatus(413) {
-			return p.makeMediaBridgeFailureMessage(msgKey, errors.New("proxy rejected too large file"), converted)
+			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("proxy rejected too large file %s", elem.Url), converted)
 		} else {
-			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("failed to upload media: %w", err), converted)
+			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("failed to upload media %s: %w", elem.Url, err), converted)
 		}
 	}
 
@@ -440,52 +440,19 @@ func (p *Portal) convertQQLocation(source *User, msgKey database.MessageKey, ele
 	}
 }
 
-func (p *Portal) handleQQForward(source *User, msgKey database.MessageKey, elem *message.ForwardElement, intent *appservice.IntentAPI, existingMsg *database.Message, sender types.UID) {
-	ts := time.Now().UnixMilli()
-	// for _, item := range source.Client.DownloadForwardMessage(elem.ResId).Items {
-	// 	for _, m := range item.Buffer.Msg {
-	// 		for _, e := range m.Body.RichText.Elems {
-	// 			p.log.Debugfln("%#v", e)
-	// 			p.log.Debugfln("%#v", e.OnlineImage)
-	// 			p.log.Debugfln("%#v", e.NotOnlineImage)
-	// 			p.log.Debugfln("%#v", e.MarketFace)
-	// 		}
-	// 	}
-	// }
+func (p *Portal) handleQQForward(source *User, msgKey database.MessageKey, elem *message.ForwardElement, intent *appservice.IntentAPI, threadEventID id.EventID) {
 	msg := source.Client.GetForwardMessage(elem.ResId)
-	nodes := msg.Nodes
 
-	converted := &ConvertedMessage{
-		Intent: intent,
-		Type:   event.EventMessage,
-		Content: &event.MessageEventContent{
-			Body:    "ForwardMessage",
-			MsgType: event.MsgText,
-		},
-		Extra: map[string]interface{}{},
-	}
-	var threadEventID id.EventID
-	resp, err := p.sendMessage(converted.Intent, converted.Type, converted.Content, converted.Extra, ts)
-	if err != nil {
-		p.log.Errorfln("Failed to send %s to Matrix: %v", msgKey, err)
-	} else {
-		threadEventID = resp.EventID
-	}
-
-	if len(threadEventID) != 0 {
-		p.finishHandling(existingMsg, msgKey, time.UnixMilli(ts), sender, threadEventID, database.MsgNormal, converted.Error, message.ToReadableString([]message.IMessageElement{elem}))
-	}
-	converted = nil
-
-	var flush func()
+	var converted *ConvertedMessage
 	var summary []string
-	flush = func() {
+	indent := 0
+	flush := func() {
 		if summary != nil {
 			converted = &ConvertedMessage{
 				Intent: intent,
 				Type:   event.EventMessage,
 				Content: &event.MessageEventContent{
-					Body:    strings.Join(summary, ""),
+					Body:    strings.Trim(strings.Join(summary, ""), "\n"),
 					MsgType: event.MsgText,
 				},
 				Extra: map[string]interface{}{},
@@ -494,9 +461,9 @@ func (p *Portal) handleQQForward(source *User, msgKey database.MessageKey, elem 
 		if converted == nil {
 			return
 		}
-		time.Sleep(100 * time.Millisecond)
 		converted.Content.RelatesTo = (&event.RelatesTo{}).SetThread(threadEventID, threadEventID)
 
+		time.Sleep(10 * time.Millisecond)
 		_, err := p.sendMessage(converted.Intent, converted.Type, converted.Content, converted.Extra, time.Now().UnixMilli())
 		if err != nil {
 			p.log.Errorfln("Failed to send %s to Matrix: %v", msgKey, err)
@@ -505,6 +472,7 @@ func (p *Portal) handleQQForward(source *User, msgKey database.MessageKey, elem 
 		converted = nil
 		summary = nil
 	}
+	lastSenderName := ""
 	var handleForward func(nodes []*message.ForwardNode)
 	handleForward = func(nodes []*message.ForwardNode) {
 		for _, node := range nodes {
@@ -512,7 +480,13 @@ func (p *Portal) handleQQForward(source *User, msgKey database.MessageKey, elem 
 			if len(name) == 0 {
 				name = strconv.FormatInt(node.SenderId, 10)
 			}
-			summary = append(summary, "\n●"+name+":\n")
+			if lastSenderName != name {
+				if len(summary) > 0 && !strings.HasSuffix(summary[len(summary)-1], "\n") {
+					summary = append(summary, "\n")
+				}
+				summary = append(summary, strings.Repeat("▶︎", indent)+"●"+name+":\n")
+			}
+			lastSenderName = name
 			for _, e := range node.Message {
 				p.log.Debugfln("%#v", e)
 				switch v := e.(type) {
@@ -544,15 +518,18 @@ func (p *Portal) handleQQForward(source *User, msgKey database.MessageKey, elem 
 					converted = p.convertQQGroupFile(source, msgKey, v, intent)
 					flush()
 				case *message.ForwardMessage:
-					summary = append(summary, "--ForwardMessage--")
+					indent++
+					lastSenderName = ""
 					handleForward(v.Nodes)
-					summary = append(summary, "\n--End ForwardMessage--")
+					indent--
 				case *message.ServiceElement:
 					if v.SubType != "xml" {
+						summary = append(summary, fmt.Sprintf("[%v]", v.Type()))
 						continue
 					}
 					doc, err := xmlquery.Parse(strings.NewReader(v.Content))
 					if err != nil {
+						summary = append(summary, fmt.Sprintf("[%v]", v.Type()))
 						p.log.Warnln("Failed to parse ServiceElement:", err)
 						continue
 					}
@@ -560,9 +537,10 @@ func (p *Portal) handleQQForward(source *User, msgKey database.MessageKey, elem 
 					if resNode != nil && len(resNode.InnerText()) != 0 {
 						msg := source.Client.GetForwardMessage(resNode.InnerText())
 						if msg != nil {
-							summary = append(summary, "--ForwardMessage--")
+							indent++
+							lastSenderName = ""
 							handleForward(msg.Nodes)
-							summary = append(summary, "\n--End ForwardMessage--")
+							indent--
 						}
 					} else {
 						briefNode := xmlquery.FindOne(doc, "/msg/@brief")
@@ -585,7 +563,7 @@ func (p *Portal) handleQQForward(source *User, msgKey database.MessageKey, elem 
 			}
 		}
 	}
-	handleForward(nodes)
+	handleForward(msg.Nodes)
 	flush()
 }
 
@@ -607,7 +585,7 @@ func (p *Portal) convertQQImage(source *User, msgKey database.MessageKey, url st
 
 	data, mime, err := download(url)
 	if err != nil {
-		return p.makeMediaBridgeFailureMessage(msgKey, errors.New("failed to download image from QQ"), converted)
+		return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("failed to download image %s from QQ", url), converted)
 	}
 
 	content.Info.MimeType = mime.String()
@@ -617,38 +595,15 @@ func (p *Portal) convertQQImage(source *User, msgKey database.MessageKey, url st
 	err = p.uploadMedia(intent, data, content)
 	if err != nil {
 		if errors.Is(err, mautrix.MTooLarge) {
-			return p.makeMediaBridgeFailureMessage(msgKey, errors.New("homeserver rejected too large file"), converted)
+			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("homeserver rejected too large file %s", url), converted)
 		} else if httpErr, ok := err.(mautrix.HTTPError); ok && httpErr.IsStatus(413) {
-			return p.makeMediaBridgeFailureMessage(msgKey, errors.New("proxy rejected too large file"), converted)
+			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("proxy rejected too large file %s", url), converted)
 		} else {
-			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("failed to upload media: %w", err), converted)
+			return p.makeMediaBridgeFailureMessage(msgKey, fmt.Errorf("failed to upload media %s: %w", url, err), converted)
 		}
 	}
 
 	return converted
-}
-
-func (p *Portal) renderQQImage(url string, intent *appservice.IntentAPI) string {
-	data, mime, err := download(url)
-	if err != nil {
-		p.log.Warnfln("failed to download image from QQ: %v", err)
-		return "[图片]"
-	}
-
-	content := &event.MessageEventContent{
-		MsgType: event.MsgImage,
-		Info: &event.FileInfo{
-			MimeType: mime.String(),
-			Size:     len(data),
-		},
-		Body: mime.String(),
-	}
-	err = p.uploadMedia(intent, data, content)
-	if err != nil {
-		p.log.Warnfln("failed to upload media: %w", err)
-		return "[图片]"
-	}
-	return fmt.Sprintf("![%s](%s)", mime.String(), content.URL)
 }
 
 func (p *Portal) renderQQLightApp(elem *message.LightAppElement, intent *appservice.IntentAPI) string {
@@ -658,13 +613,13 @@ func (p *Portal) renderQQLightApp(elem *message.LightAppElement, intent *appserv
 	if url := gjson.Get(elem.Content, "meta.*.qqdocurl").String(); len(url) > 0 {
 		title := gjson.Get(elem.Content, "meta.*.title").String()
 		desc := gjson.Get(elem.Content, "meta.*.desc").String()
-		return fmt.Sprintf("%s\n\nvia [%s](%s)", desc, title, url)
+		return fmt.Sprintf("%s\nvia [%s](%s)", desc, title, url)
 	}
 	if jumpUrl := gjson.Get(elem.Content, "meta.*.jumpUrl").String(); len(jumpUrl) > 0 {
 		title := gjson.Get(elem.Content, "meta.*.title").String()
 		desc := gjson.Get(elem.Content, "meta.*.desc").String()
 		tag := gjson.Get(elem.Content, "meta.*.tag").String()
-		return fmt.Sprintf("**%s**\n\n%s\n\nvia [%s](%s)", title, desc, tag, jumpUrl)
+		return fmt.Sprintf("**%s**\n%s\nvia [%s](%s)", title, desc, tag, jumpUrl)
 	}
 	url := gjson.Get(elem.Content, "meta.data.*.jumpUrl").String()
 	if len(url) == 0 {
@@ -679,7 +634,7 @@ func (p *Portal) renderQQLightApp(elem *message.LightAppElement, intent *appserv
 	if len(url) > 0 {
 		desc := gjson.Get(elem.Content, "desc").String()
 		prompt := gjson.Get(elem.Content, "prompt").String()
-		return fmt.Sprintf("[%s](%s)\n\n%s", prompt, url, desc)
+		return fmt.Sprintf("[%s](%s)\n%s", prompt, url, desc)
 	}
 	prompt := gjson.Get(elem.Content, "prompt").String()
 	return fmt.Sprintf("Unsupported LightApp: %s", prompt)
@@ -737,14 +692,16 @@ func (p *Portal) handleQQMessage(source *User, msg PortalMessage) {
 	mentions := make(map[int]string)
 	isRichFormat := false
 
-	var flush func()
-	flush = func() {
+	var firstEventID id.EventID
+
+	flush := func() {
 		if len(summary) == 0 && converted == nil {
 			return
 		}
-		time.Sleep(100 * time.Millisecond)
 
 		if len(summary) > 0 {
+			summary[0] = strings.TrimLeft(summary[0], "\n")
+			summary[len(summary)-1] = strings.TrimRight(summary[len(summary)-1], "\n")
 			body := strings.Join(summary, "")
 			content := &event.MessageEventContent{
 				Body:    body,
@@ -791,6 +748,15 @@ func (p *Portal) handleQQMessage(source *User, msg PortalMessage) {
 			p.SetReply(converted.Content, replyInfo)
 		}
 
+		if len(firstEventID) != 0 {
+			if converted.Content.RelatesTo == nil {
+				converted.Content.RelatesTo = &event.RelatesTo{
+					Type:    "qq.first.id",
+					EventID: firstEventID,
+				}
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
 		var eventID id.EventID
 		resp, err := p.sendMessage(converted.Intent, converted.Type, converted.Content, converted.Extra, ts)
 		if err != nil {
@@ -799,8 +765,9 @@ func (p *Portal) handleQQMessage(source *User, msg PortalMessage) {
 			eventID = resp.EventID
 		}
 
-		if len(eventID) != 0 {
+		if len(eventID) != 0 && len(firstEventID) == 0 {
 			p.finishHandling(existingMsg, msgKey, time.UnixMilli(ts), sender, eventID, database.MsgNormal, converted.Error, message.ToReadableString(elems))
+			firstEventID = eventID
 		}
 
 		converted = nil
@@ -809,8 +776,6 @@ func (p *Portal) handleQQMessage(source *User, msg PortalMessage) {
 		mentions = make(map[int]string)
 		isRichFormat = false
 	}
-
-	enableRichFormat := false
 
 	if msg.offline != nil {
 		converted = p.convertQQFile(source, msgKey, msg.offline, intent)
@@ -831,33 +796,13 @@ func (p *Portal) handleQQMessage(source *User, msg PortalMessage) {
 					mentions[len(summary)-1] = fmt.Sprintf(`<a href="https://matrix.to/#/%s">%s</a>`, mxid, name)
 				}
 			case *message.FriendImageElement:
-				// rich format can't display gif properly...
-				if len(elems) == 1 {
-					converted = p.convertQQImage(source, msgKey, v.Url, intent)
-				} else {
-					if enableRichFormat {
-						summary = append(summary, p.renderQQImage(v.Url, intent))
-						isRichFormat = true
-					} else {
-						flush()
-						converted = p.convertQQImage(source, msgKey, v.Url, intent)
-						flush()
-					}
-				}
+				flush()
+				converted = p.convertQQImage(source, msgKey, v.Url, intent)
+				flush()
 			case *message.GroupImageElement:
-				// rich format can't display gif properly...
-				if len(elems) == 1 {
-					converted = p.convertQQImage(source, msgKey, v.Url, intent)
-				} else {
-					if enableRichFormat {
-						summary = append(summary, p.renderQQImage(v.Url, intent))
-						isRichFormat = true
-					} else {
-						flush()
-						converted = p.convertQQImage(source, msgKey, v.Url, intent)
-						flush()
-					}
-				}
+				flush()
+				converted = p.convertQQImage(source, msgKey, v.Url, intent)
+				flush()
 			case *message.ShortVideoElement:
 				converted = p.convertQQVideo(source, msgKey, v, intent)
 			case *message.GroupFileElement:
@@ -879,29 +824,23 @@ func (p *Portal) handleQQMessage(source *User, msg PortalMessage) {
 					desc := gjson.Get(v.Content, "meta.albumData.desc").String()
 					prompt := gjson.Get(v.Content, "prompt").String()
 					summary = append(summary, fmt.Sprintf("%s@%s\n%s\n", prompt, albumName, desc))
-					isRichFormat = true
 					pics := gjson.Get(v.Content, "meta.albumData.pics.#.url").Array()
-					if enableRichFormat {
-						for _, url := range pics {
-							summary = append(summary, p.renderQQImage("https://"+url.String(), intent))
-						}
-					} else {
+					flush()
+					for _, url := range pics {
+						converted = p.convertQQImage(source, msgKey, "https://"+strings.ReplaceAll(url.String(), "!!/400", "!!/0"), intent)
 						flush()
-						for _, url := range pics {
-							converted = p.convertQQImage(source, msgKey, "https://"+url.String(), intent)
-							flush()
-						}
 					}
 				} else {
 					if len(elems) > 1 {
-						summary = append(summary, "\n\n")
+						summary = append(summary, "\n")
 					}
 					summary = append(summary, p.renderQQLightApp(v, intent))
 					isRichFormat = true
 				}
 			case *message.ForwardElement:
-				// converted = p.convertQQForward(source, msgKey, v, intent)
-				p.handleQQForward(source, msgKey, v, intent, existingMsg, sender)
+				summary = append(summary, "ForwardMessage")
+				flush()
+				p.handleQQForward(source, msgKey, v, intent, firstEventID)
 			case *message.AnimatedSticker:
 				summary = append(summary, "/"+v.Name)
 			case *message.MarketFaceElement:
@@ -1982,6 +1921,27 @@ func (p *Portal) HandleMatrixMessage(sender *User, evt *event.Event) {
 	var replyMention *message.AtElement
 	if len(replyToID) > 0 {
 		replyToMsg := p.bridge.DB.Message.GetByMXID(replyToID)
+		if replyToMsg == nil {
+			evt, err := p.MainIntent().GetEvent(p.MXID, replyToID)
+			if err != nil {
+				p.log.Warnln("Failed to get reply target:", err)
+			} else {
+				_ = evt.Content.ParseRaw(evt.Type)
+				if evt.Type == event.EventEncrypted {
+					decryptedEvt, err := p.bridge.Crypto.Decrypt(evt)
+					if err != nil {
+						p.log.Warnln("Failed to decrypt reply target:", err)
+					} else {
+						evt = decryptedEvt
+					}
+				}
+				if parsedContent, ok := evt.Content.Parsed.(*event.MessageEventContent); ok {
+					if parsedContent.RelatesTo.Type == "qq.first.id" || parsedContent.RelatesTo.Type == "m.thread" {
+						replyToMsg = p.bridge.DB.Message.GetByMXID(parsedContent.RelatesTo.EventID)
+					}
+				}
+			}
+		}
 		if replyToMsg != nil && !replyToMsg.IsFakeMsgID() && replyToMsg.Type == database.MsgNormal {
 			replySeq, err := strconv.ParseInt(replyToMsg.Key.Seq, 10, 32)
 			if err != nil {
